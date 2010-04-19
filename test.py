@@ -6,7 +6,12 @@ from dclite.gui import GtkGui
 
 if __name__ == "__main__":
     import sys
+
+    import gtk;
+
+    b = gtk.Builder();
+    b.add_from_file("share/gui.ui");
     
-    gui = GtkGui("share/gui.glade");
+    gui = GtkGui(b);
     gui.main_window.show_all();
     reactor.run();

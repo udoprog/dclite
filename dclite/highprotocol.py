@@ -2,42 +2,65 @@ from adc.twisted import ADCHubProtocol, HubUser
 from twisted.internet.protocol import ClientFactory
 
 class MyADCHubProtocol(ADCHubProtocol):
-    def __init__(self, guiwindow):
-      self.gui = guiwindow;
-      self.gui.setProtocol(self);
+    """
+    TODO: emit messages to hubwindow properly
+    """
+    def __init__(self, hubwindow):
+      hubwindow = hubwindow;
       ADCHubProtocol.__init__(self);
+      
+      def on_hub_identified(hub):
+        hubwindow.emit("hub_identified", hub)
+
+      def on_status(status):
+        hubwindow.emit("status", status);
+      
+      def on_message(user, message):
+        hubwindow.emit("message", user, message);
+
+      def on_user_info(user):
+        hubwindow.emit("user_info", user);
+      
+      def on_user_quit(user):
+        hubwindow.emit("user_quit", user);
+      
+      def on_connection_made():
+        hubwindow.emit("connection_made");
+      
+      def on_connection_lost(reason):
+        hubwindow.emit("connection_lost", reason);
+      
+      self.connect("hub-identified", on_hub_identified);
+      self.connect("status", on_status);
+      self.connect("message", on_message);
+      self.connect("user-info", on_user_info);
+      self.connect("user-quit", on_user_quit);
+      self.connect("connection-made", on_connection_made);
+      self.connect("connection-lost", on_connection_lost);
+      
+      # private signals
+      self.connect("get-user", self.getUser);
+      self.connect("direct-connect", self.onDirectConnect);
+      
+      hubwindow.connect("input_message_submit", self.on_inputSendMessage);
     
-    def connectionMade(self):
-      ADCHubProtocol.connectionMade(self);
-      self.gui.printStatus("connection made");
-    
-    def connectionLost(self, reason):
-      ADCHubProtocol.connectionLost(self, reason);
-      self.gui.printStatus("connection lost: " + str(reason.value));
-    
-    def onHubIdentified(self):
-      if self.hub.name:
-        self.gui.set_label(self.hub.name);
-      else:
-        self.gui.set_label(self.hub.version + " " + self.hub.peer.host + ":" + str(self.hub.peer.port));
-    
-    def onStatus(self, status):
-      self.gui.printStatus(str(status));
-    
-    def onMessage(self, user, message):
-      self.gui.printStatus("<" + user.nick + "> " + message);
+    def on_inputSendMessage(self, source, message):
+      self.sendMessage(message);
     
     def getUser(self):
-      return HubUser(nick="udoprog-test", sharesize=1024**3);
+      return HubUser(NI="udoprog-test", SS=(1024 ** 5) * 10);
+    
+    def onDirectConnect(self, user):
+      print "connect to", user.nick, user.ip4
 
 class HubFactory(ClientFactory):
     protocol = MyADCHubProtocol
     
-    def __init__(self, gui, **kw):
-        self.gui = gui;
+    def __init__(self, hubwindow, **kw):
+        self.hubwindow = hubwindow;
         self.kw = kw;
     
     def buildProtocol(self, conn):
-        self.protocol = MyADCHubProtocol(self.gui, **self.kw);
+        self.protocol = MyADCHubProtocol(self.hubwindow, **self.kw);
         return self.protocol;
 
