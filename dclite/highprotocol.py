@@ -13,7 +13,7 @@ class MyADCHubProtocol(ADCHubProtocol):
       hubsignals = [
         ("hub-identified",  "hub-identified"),
         ("status",          "status"),
-        ("message",         "on-message"),
+        ("message",         "message"),
         ("user-info",       "user-info"),
         ("user-quit",       "user-quit"),
         ("connection-made", "connectino-made"),
@@ -25,10 +25,9 @@ class MyADCHubProtocol(ADCHubProtocol):
       
       # private signals
       self.connect("direct-connect", self.onDirectConnect);
-      
-      hubwindow.connect("input-message-submit", self.on_inputSendMessage);
+      hubwindow.connect("input-message-submit", self.onInputMessageSubmit);
     
-    def on_inputSendMessage(self, source, message):
+    def onInputMessageSubmit(self, source, message):
       self.sendMessage(message);
     
     def getUser(self):

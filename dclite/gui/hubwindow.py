@@ -21,7 +21,7 @@ class HubWindow(gtk.HPaned):
     "user-quit": (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, (gobject.TYPE_PYOBJECT,)),
     
     # emitted when a message is received on this hub
-    "on-message": (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, (gobject.TYPE_PYOBJECT, gobject.TYPE_STRING)),
+    "message": (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, (gobject.TYPE_PYOBJECT, gobject.TYPE_STRING)),
     
     # emitted when a connection is made on this hub
     "connection-made": (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, tuple()),
@@ -50,6 +50,7 @@ class HubWindow(gtk.HPaned):
     self.connect("connection-lost", lambda _, reason: self.appendStatus("disconnected: " + str(reason.value)))
     self.connect("user-info", lambda _, user: self.nicklist.update_user(user))
     self.connect("user-quit", lambda _, user: self.nicklist.remove_user(user))
+    self.connect("message", lambda _, user, message: self.appendStatus(time.strftime("%H:%M:%S") + " <" + user.nick + "> " + message))
 
   def get_name(self):
     return self.__name;

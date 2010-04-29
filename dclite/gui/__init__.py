@@ -1,16 +1,17 @@
-from .hubwindow import HubWindow
-from .downloadlist import DownloadList
-
-from ..highprotocol import HubFactory
-
-from .. import utils
-
 from twisted.internet import reactor
 
 import gtk
 
+from .hubwindow import HubWindow
+from .downloadlist import DownloadList
+
+from ..highprotocol import HubFactory
+from .. import utils
+
+
 import urlparse
 import time
+
 
 DEFAULT_PORT=1511
 ADC_SCHEME="adc"
@@ -62,11 +63,11 @@ class GtkGui:
     self.update_time()
     self.update_speeds();
   
-  def push_status(self, message, context="Main"):
+  def pushStatus(self, message, context="Main"):
     context_id = self.main_statusbar.get_context_id(context)
     self.main_statusbar.push(context_id, message)
   
-  def pop_status(self, context="Main"):
+  def popStatus(self, context="Main"):
     context_id = self.main_statusbar.get_context_id(context)
     self.main_statusbar.pop(context_id)
   
@@ -104,7 +105,7 @@ class GtkGui:
     else:
       host, port = parts[0], int(parts[1]);
 
-    self.push_status("Connecting to hub: " + uri)
+    self.pushStatus("Connecting to hub: " + uri)
     
     self.connectHub(host, port);
     self.close_quick_connect(source);
@@ -114,12 +115,12 @@ class GtkGui:
     
     connector = reactor.connectTCP(host, port, HubFactory(hub))
     
-    hub.connect("connection-made", lambda _: self.push_status("Connection made: " + hub.get_name()))
-    hub.connect("connection-lost", lambda _: self.push_status("Connection lost to: " + hub.get_name()))
+    hub.connect("connection-made", lambda _: self.pushStatus("Connection made: " + hub.name))
+    hub.connect("connection-lost", lambda _: self.pushStatus("Connection lost to: " + hub.name))
     hub.connect("destroy", lambda _: connector.disconnect())
-    hub.connect("on-message", lambda _, user, message: hub.appendStatus(time.strftime("%H:%M:%S") + " <" + user.nick + "> " + message))
     
     self.main_window.show_all();
+    self.main_window.connect("hide", lambda _: reactor.stop());
   
   def open_quick_connect(self, source):
     self.quick_connect_window.show();
