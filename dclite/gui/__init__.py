@@ -3,11 +3,14 @@ from .downloadlist import DownloadList
 
 from ..highprotocol import HubFactory
 
+from .. import utils
+
 from twisted.internet import reactor
 
 import gtk
 
 import urlparse
+import time
 
 DEFAULT_PORT=1511
 ADC_SCHEME="adc"
@@ -25,6 +28,10 @@ class GtkGui:
     "download_list",
     "main_status",
     "aboutdialog",
+    "time_label",
+    "speed_up_label",
+    "speed_down_label",
+    "main_statusbar",
   ];
   
   def __bind(self, getter):
@@ -34,6 +41,10 @@ class GtkGui:
         setattr(self, w, wi);
   
   def __init__(self, b):
+    # speed lists, which contains a set of bytes which has been acquired since last poll
+    self.speed_up = 0;
+    self.speed_down = 0;
+    
     if isinstance(b, gtk.Builder):
       self.getter = b.get_object;
       self.__bind(self.getter);
@@ -46,13 +57,42 @@ class GtkGui:
     dl = DownloadList()
     self.download_list.add(dl)
     
-    entry = dl.createEntry(nick="nick4", status="Wider STATUS STUFF", progress=10, progress_text="TEST1");
-    entry = dl.createEntry(nick="nick5", progress=11, progress_text="TEST2");
-    entry = dl.createEntry(nick="nick6", progress=12, progress_text="TEST3");
-    entry = dl.createEntry(nick="nick2", progress=13, progress_text="TEST4");
-    entry = dl.createEntry(nick="nick3", progress=14, progress_text="TEST5");
-    entry = dl.createEntry(nick="nick1", progress=15, progress_text="TEST6");
-    entry.destroy();
+    self.entry = dl.createEntry(nick="nick4", status="Wider STATUS STUFF", progress=10, progress_text="TEST1");
+    
+    self.update_time()
+    self.update_speeds();
+  
+  def push_status(self, message, context="Main"):
+    context_id = self.main_statusbar.get_context_id(context)
+    self.main_statusbar.push(context_id, message)
+  
+  def pop_status(self, context="Main"):
+    context_id = self.main_statusbar.get_context_id(context)
+    self.main_statusbar.pop(context_id)
+  
+  def add_speed_up(self, kb):
+    self.speed_up += kb;
+  
+  def add_speed_down(self, kb):
+    self.speed_down += kb;
+  
+  def update_time(self):
+    self.now = time.time()
+    self.time_label.set_text(time.strftime("%H:%M:%S"));
+
+    self.speed_up += 1024 ** 5;
+    
+    # queue the next time update
+    reactor.callLater(1 - (self.now % 1), self.update_time)
+  
+  def update_speeds(self):
+    self.speed_up_label.set_text(utils.format_bandwidth(self.speed_up * 10))
+    self.speed_down_label.set_text(utils.format_bandwidth(self.speed_down * 10))
+    
+    self.speed_up = 0;
+    self.speed_down = 0;
+    # queue the next time update
+    reactor.callLater(1, self.update_speeds)
   
   def submit_quick_connect(self, source):
     uri = self.quick_connect_uri.get_text();
@@ -63,6 +103,8 @@ class GtkGui:
       host, port = parts[0], DEFAULT_PORT;
     else:
       host, port = parts[0], int(parts[1]);
+
+    self.push_status("Connecting to hub: " + uri)
     
     self.connectHub(host, port);
     self.close_quick_connect(source);
@@ -72,11 +114,11 @@ class GtkGui:
     
     connector = reactor.connectTCP(host, port, HubFactory(hub))
     
-    def on_destroy(source):
-      connector.disconnect();
+    hub.connect("connection-made", lambda _: self.push_status("Connection made: " + hub.get_name()))
+    hub.connect("connection-lost", lambda _: self.push_status("Connection lost to: " + hub.get_name()))
+    hub.connect("destroy", lambda _: connector.disconnect())
+    hub.connect("on-message", lambda _, user, message: hub.appendStatus(time.strftime("%H:%M:%S") + " <" + user.nick + "> " + message))
     
-    hub.connect("destroy", on_destroy)
-
     self.main_window.show_all();
   
   def open_quick_connect(self, source):

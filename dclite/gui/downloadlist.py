@@ -3,17 +3,20 @@ import gtk
 class DownloadEntry:
   def __init__(self, list, **kw):
     self.list = list;
-    
     self.iter = None;
     
     self.nick = kw.get("nick", "No Nick");
     self.status = kw.get("status", "No Status");
     self.progress = kw.get("progress", 0);
     self.progress_text = kw.get("progress_text", "");
-    
     self.update();
   
-  def update(self):
+  def update(self, **kw):
+    if "nick" in kw:            self.nick = kw.get("nick");
+    if "status" in kw:          self.status = kw.get("status");
+    if "progress" in kw:        self.progress = kw.get("progress");
+    if "progress_text" in kw:   self.progress_text = kw.get("progress_text");
+    
     if self.iter is None:
       self.iter = self.list.append([self.nick, self.status, self.progress, self.progress_text]);
     else:

@@ -1,11 +1,41 @@
 import gtk
 import gobject
 
+from .. import utils
+
 class HubWindow(gtk.HPaned):
+  __gsignals__ = {
+    # when an input message is submitted
+    "input-message-submit": (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, (gobject.TYPE_STRING,)),
+    
+    # when the hub has been identified
+    "hub-identified": (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, (gobject.TYPE_PYOBJECT,)),
+    
+    # emitted when status has been received on the hub
+    "status": (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, (gobject.TYPE_PYOBJECT,)),
+    
+    # emitted when user info has been received
+    "user-info": (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, (gobject.TYPE_PYOBJECT,)),
+    
+    # emitted when a user quits on this hub
+    "user-quit": (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, (gobject.TYPE_PYOBJECT,)),
+    
+    # emitted when a message is received on this hub
+    "on-message": (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, (gobject.TYPE_PYOBJECT, gobject.TYPE_STRING)),
+    
+    # emitted when a connection is made on this hub
+    "connection-made": (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, tuple()),
+    
+    # emitted when a connection is lost on this hub
+    "connection-lost": (gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, (gobject.TYPE_PYOBJECT, )),
+  };
+  
   def __init__(self, label_text="Hub Window"):
     gtk.HPaned.__init__(self);
+
+    self.__name = label_text
     
-    self.label = gtk.Label(label_text);
+    self.label = gtk.Label(self.__name);
     
     self.status = HubStatus();
     self.nicklist = HubNickList();
@@ -15,62 +45,23 @@ class HubWindow(gtk.HPaned):
     
     self.label.show();
     self.show_all();
+    
+    self.connect("connection-made", lambda _: self.appendStatus("connected"))
+    self.connect("connection-lost", lambda _, reason: self.appendStatus("disconnected: " + str(reason.value)))
+    self.connect("user-info", lambda _, user: self.nicklist.update_user(user))
+    self.connect("user-quit", lambda _, user: self.nicklist.remove_user(user))
 
-    def on_connection_made(source):
-      source.appendStatus("connected");
-    
-    def on_connection_lost(source, reason):
-      source.appendStatus("disconnected: " + str(reason.value));
-  
-    def on_user_info(source, user):
-      source.nicklist.update_user(user);
-    
-    def on_user_quit(source, user):
-      source.nicklist.remove_user(user);
-    
-    def on_message(source, user, message):
-      import datetime
-      now = datetime.datetime.now().strftime("%H:%M:%S")
-      source.appendStatus(now + " <" + user.nick + "> " + message);
+  def get_name(self):
+    return self.__name;
 
-    self.connect("connection_made", on_connection_made)
-    self.connect("connection_lost", on_connection_lost)
-    self.connect("user_info", on_user_info)
-    self.connect("user_quit", on_user_quit)
-    self.connect("message", on_message)
+  def set_name(self, name):
+    self.label.set_text(name)
+    self.__name = name
   
-  def set_label(self, s):
-    self.label.set_text(s);
+  name = property(get_name, set_name)
   
   def appendStatus(self, s):
     self.status.append(s);
-
-gobject.signal_new("input_message_submit", HubWindow, gobject.SIGNAL_RUN_FIRST,
-  gobject.TYPE_NONE, [gobject.TYPE_STRING])
-
-gobject.signal_new("on_message", HubWindow, gobject.SIGNAL_RUN_FIRST,
-  gobject.TYPE_NONE, [gobject.TYPE_PYOBJECT, gobject.TYPE_STRING])
-
-gobject.signal_new("hub_identified", HubWindow, gobject.SIGNAL_RUN_FIRST,
-  gobject.TYPE_NONE, [gobject.TYPE_PYOBJECT])
-
-gobject.signal_new("status", HubWindow, gobject.SIGNAL_RUN_FIRST,
-  gobject.TYPE_NONE, [gobject.TYPE_PYOBJECT])
-
-gobject.signal_new("user_info", HubWindow, gobject.SIGNAL_RUN_FIRST,
-  gobject.TYPE_NONE, [gobject.TYPE_PYOBJECT])
-
-gobject.signal_new("user_quit", HubWindow, gobject.SIGNAL_RUN_FIRST,
-  gobject.TYPE_NONE, [gobject.TYPE_PYOBJECT])
-
-gobject.signal_new("message", HubWindow, gobject.SIGNAL_RUN_FIRST,
-  gobject.TYPE_NONE, [gobject.TYPE_PYOBJECT, gobject.TYPE_STRING])
-
-gobject.signal_new("connection_made", HubWindow, gobject.SIGNAL_RUN_FIRST,
-  gobject.TYPE_NONE, [])
-
-gobject.signal_new("connection_lost", HubWindow, gobject.SIGNAL_RUN_FIRST,
-  gobject.TYPE_NONE, [gobject.TYPE_PYOBJECT])
 
 class HubStatus(gtk.VBox):
   delimiter = "\n";
@@ -80,14 +71,16 @@ class HubStatus(gtk.VBox):
     self.text = gtk.TextView();
     self.text.set_editable(False);
     self.text.set_wrap_mode(gtk.WRAP_WORD);
+    self.text.set_left_margin(4)
+    self.text.set_right_margin(4)
     
     self.input = gtk.Entry();
     
     self.scrolledwindow = gtk.ScrolledWindow();
     self.scrolledwindow.add(self.text);
     self.scrolledwindow.set_policy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
-    self.scrolledwindow.set_placement(gtk.CORNER_BOTTOM_LEFT);
-    
+    self.scrolledwindow.set_placement(gtk.CORNER_BOTTOM_LEFT)
+
     def on_size_allocate(source, event):
       adj = self.scrolledwindow.get_vadjustment();
       adj.set_value(adj.get_upper() - adj.get_page_size());
@@ -149,36 +142,6 @@ class HubNickList(gtk.TreeView):
     col2.connect("clicked", on_event, 1);
     
     self.users = dict();
-
-  def _format_sharesize(self, ss):
-    ss = float(ss);
-    
-    if ss >= 1024:
-      ss = ss / 1024;
-    else:
-      return str(ss) + " B";
-    
-    if ss >= 1024:
-      ss = ss / 1024;
-    else:
-      return str(ss) + " KiB";
-    
-    if ss >= 1024:
-      ss = ss / 1024;
-    else:
-      return str(ss) + " MiB";
-    
-    if ss >= 1024:
-      ss = ss / 1024;
-    else:
-      return str(ss) + " GiB";
-    
-    if ss >= 1024:
-      ss = ss / 1024;
-    else:
-      return str(ss) + " TiB";
-    
-    return str(ss) + " PiB";
   
   def update_user(self, user):
     if user.sid in self.users:
@@ -187,7 +150,7 @@ class HubNickList(gtk.TreeView):
     else:
       self.parent.appendStatus("User joined: " + user.nick);
     
-    iter = self.list.append([user.nick, self._format_sharesize(user.sharesize)]);
+    iter = self.list.append([user.nick, utils.format_bytes(user.sharesize)]);
     self.users[user.sid] = iter;
   
   def remove_user(self, user):
